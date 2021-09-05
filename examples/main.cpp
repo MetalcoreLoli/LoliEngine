@@ -8,18 +8,11 @@ struct MyConsoleLogger : public loli::utils::ILogger {
 };
 
 struct MyApp : public loli::LoliApp {
-    explicit MyApp(loli::utils::ILogger *logger) : loli::LoliApp(logger) {
-        auto *sub = KeyDownEvent.subscribe(this)->add([&](auto &key) mutable {
-            loli::utils::ConsoleLogger log;
-            std::string msg = "key: ";
-            log.log(msg.append(std::to_string((char)key->code.get()).append(" was pressed")));
-        });
-        KeyDownEvent.remove(sub);
-    }
+    explicit MyApp(loli::utils::ILogger *logger) : loli::LoliApp(logger) {}
 
     loli::LoliApp& OnKeyDown (SDL_Keycode key) override {
         switch (key) {
-            case SDLK_q:
+            case SDLK_ESCAPE:
                 changeStateTo(loli::AppState::QUIT);
                 break;
         }
@@ -28,6 +21,11 @@ struct MyApp : public loli::LoliApp {
 
 int main() {
     MyApp app(new loli::utils::ConsoleLogger);
+    auto subscription = app.KeyDownEvent.subscribe(&app)->add([](auto& s, auto& key) {
+        std::cout << "key: " << (char) key.code.get() << " was pressed" <<std::endl;
+    });
+
+
     app.screenWidth(600).screenHeight(800).run();
     return 0;
 }

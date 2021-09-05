@@ -72,17 +72,17 @@ namespace loli {
                explicit Subscription(ISubscriber* sub) : _mSubscriber(sub) {}
                virtual ~Subscription() = default;
 
-                Subscription* add (std::function<void (const TEventArgs&)> func) {
+                Subscription* add (std::function<void (const TSender, const TEventArgs)> func) {
                     _mFunction = func;
                     return this;
                 }
 
-                void invoke (const TEventArgs& eventArgs) {
-                    _mFunction(eventArgs);
+                void invoke (const TEventArgs eventArgs) {
+                    _mFunction(static_cast<TSender>(*_mSubscriber), eventArgs);
                 }
                 ISubscriber* _mSubscriber = nullptr;
             private:
-                std::function<void(const TEventArgs&)> _mFunction = nullptr;
+                std::function<void(const TSender, const TEventArgs)> _mFunction = nullptr;
             };
 
             Subscription* subscribe(ISubscriber* subscriber) {
@@ -188,8 +188,8 @@ namespace loli {
             _mCurrentState = AppState::PLAY;
             _sName = name;
 
-            KeyDownEvent.subscribe(this)->add([&](auto& a) {
-                OnKeyDown(a.code.get());
+            KeyDownEvent.subscribe(this)->add([&](auto& s, auto &e) {
+                OnKeyDown(e.code.get());
             });
         }
         LoliApp& run() {
