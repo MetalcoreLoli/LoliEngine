@@ -1,5 +1,5 @@
 #include <iostream>
-#include "src/LoliEngine.hpp"
+#include "../src/LoliEngine.hpp"
 
 int main() {
     loli::LoliApp app(new loli::utils::ConsoleLogger);
