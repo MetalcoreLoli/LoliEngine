@@ -45,12 +45,10 @@ namespace loli {
     }
 
     namespace events {
-
         namespace args {
             struct IEventArgs{};
-
             template<typename T>
-            concept EventArguments = std::derived_from<T, IEventArgs>;
+            concept EventArguments = std::derived_from<T, IEventArgs> || std::is_reference_v<T>;
 
             struct KeyDownEventArgs : public IEventArgs {
                 explicit KeyDownEventArgs(SDL_Keycode keyCode) {
@@ -62,15 +60,13 @@ namespace loli {
                 SDL_Keycode _mCode{};
             };
         };
-        struct ISubscriber{
-            void drop () {}
-        };
-
+        struct ISubscriber{};
 
         template<typename T>
-        concept Subscriber = std::derived_from<T, ISubscriber>;
+        concept Subscriber = std::derived_from<T, ISubscriber> || std::is_reference_v<T>;
 
         template<typename TSender, typename TEventArgs>
+            requires Subscriber<TSender> && args::EventArguments<TEventArgs>
         struct Event {
             struct Subscription {
                explicit Subscription(ISubscriber* sub) : _mSubscriber(sub) {}
@@ -108,7 +104,6 @@ namespace loli {
         private:
             std::vector<Subscription*> _vSubscriptions{};
         };
-
     }
 
     namespace graphics {
@@ -247,7 +242,7 @@ namespace loli {
             return *this;
         }
     public:
-        events::Event<LoliApp*, events::args::KeyDownEventArgs*> KeyDownEvent;
+        events::Event<LoliApp&, events::args::KeyDownEventArgs&> KeyDownEvent;
     private:
         LoliApp& init() {
             _mLogger->log("engine initializing...");
