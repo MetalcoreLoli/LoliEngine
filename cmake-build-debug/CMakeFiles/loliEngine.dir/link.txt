@@ -1,1 +1,0 @@
-/usr/bin/c++ -g CMakeFiles/loliEngine.dir/main.cpp.o -o loliEngine  -lSDL2 -lGL 
