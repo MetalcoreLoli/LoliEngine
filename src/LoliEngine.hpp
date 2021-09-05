@@ -77,7 +77,6 @@ namespace loli {
                     return this;
                 }
 
-
                 void invoke (const TEventArgs& eventArgs) {
                     _mFunction(eventArgs);
                 }
@@ -98,7 +97,7 @@ namespace loli {
                 }));
             }
 
-            void invoke (TSender sender, TEventArgs eventArgs) {
+            void invoke (TEventArgs eventArgs) {
                 for (const auto& subscription : _vSubscriptions) {
                    subscription->invoke (eventArgs);
                 }
@@ -280,7 +279,7 @@ namespace loli {
                         break;
                     case SDL_KEYDOWN:
                         events::args::KeyDownEventArgs eventArgs(event.key.keysym.sym);
-                        KeyDownEvent.invoke(*this, eventArgs);
+                        KeyDownEvent.invoke(eventArgs);
                         break;
                 }
             }
