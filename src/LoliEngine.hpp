@@ -187,8 +187,8 @@ namespace loli {
             _mCurrentState = AppState::PLAY;
             _sName = name;
 
-            KeyDownEvent.subscribe(this)->add([&](auto& a) mutable {
-                OnKeyDown(a->code.get());
+            KeyDownEvent.subscribe(this)->add([&](auto& a) {
+                OnKeyDown(a.code.get());
             });
         }
         LoliApp& run() {
@@ -273,11 +273,12 @@ namespace loli {
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
                 switch (event.type) {
-                    case SDL_KEYDOWN:
-                        KeyDownEvent.invoke(this, new events::args::KeyDownEventArgs(event.key.keysym.sym));
-                        break;
                     case SDL_QUIT:
                         end();
+                        break;
+                    case SDL_KEYDOWN:
+                        events::args::KeyDownEventArgs eventArgs(event.key.keysym.sym);
+                        KeyDownEvent.invoke(*this, eventArgs);
                         break;
                 }
             }
