@@ -70,6 +70,7 @@ namespace loli {
         struct Event {
             struct Subscription {
                explicit Subscription(ISubscriber* sub) : _mSubscriber(sub) {}
+               virtual ~Subscription() = default;
 
                 Subscription* add (std::function<void (const TEventArgs&)> func) {
                     _mFunction = func;
@@ -92,7 +93,9 @@ namespace loli {
             }
 
             void remove (Subscription* sub) {
-                //TODO: remove subscription
+                _vSubscriptions.erase(std::remove_if(_vSubscriptions.begin(), _vSubscriptions.end(), [&](auto elem) {
+                   return sub == elem;
+                }));
             }
 
             void invoke (TSender sender, TEventArgs eventArgs) {
@@ -100,7 +103,6 @@ namespace loli {
                    subscription->invoke (eventArgs);
                 }
             }
-
         private:
             std::vector<Subscription*> _vSubscriptions{};
         };
@@ -315,7 +317,7 @@ namespace loli {
 
         AppState _mCurrentState;
 
-        // For Delete
+        //TODO: Delete
         graphics::Sprite _mSprite{};
     protected:
         //utility
