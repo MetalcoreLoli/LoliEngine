@@ -6,6 +6,12 @@
 #include <GL/gl.h>
 #include <GLES3/gl3.h>
 
+#include <vector>
+#include <string>
+#include <concepts>
+#include <functional>
+#include <ranges>
+
 #ifndef LOLIENGINE_LOLIENGINE_HPP
 #define LOLIENGINE_LOLIENGINE_HPP
 
@@ -17,7 +23,7 @@ namespace loli {
 
         struct ConsoleLogger : public ILogger {
             void log(const std::string& msg) override {
-                std::cout << "[INFO]: " << msg << std::endl;
+                std::cout << "["<<__BASE_FILE__ <<":"<<__LINE__<<"]: " << msg << std::endl;
             }
         };
         template<typename T>
@@ -39,25 +45,70 @@ namespace loli {
     }
 
     namespace events {
-        typedef void eventAction
-        struct IEventArgs;
+
+        namespace args {
+            struct IEventArgs{};
+
+            template<typename T>
+            concept EventArguments = std::derived_from<T, IEventArgs>;
+
+            struct KeyDownEventArgs : public IEventArgs {
+                explicit KeyDownEventArgs(SDL_Keycode keyCode) {
+                    code.set(keyCode);
+                }
+                //TODO: change it
+                utils::Property<SDL_Keycode> code{_mCode};
+            private:
+                SDL_Keycode _mCode{};
+            };
+        };
+        struct ISubscriber{
+            void drop () {}
+        };
+
 
         template<typename T>
-        concept EventArguments = std::derived_from<IEventArgs, T>;
+        concept Subscriber = std::derived_from<T, ISubscriber>;
 
-        template<typename TSender, EventArguments TEventArgs>
+        template<typename TSender, typename TEventArgs>
         struct Event {
-            struct Subcription;
+            struct Subscription {
+               explicit Subscription(ISubscriber* sub) : _mSubscriber(sub) {}
 
-            Subcription* subcribe() {
-                return nullptr;
+                Subscription* add (std::function<void (const TEventArgs&)> func) {
+                    _mFunction = func;
+                    return this;
+                }
+
+
+                void invoke (const TEventArgs& eventArgs) {
+                    _mFunction(eventArgs);
+                }
+                ISubscriber* _mSubscriber = nullptr;
+            private:
+                std::function<void(const TEventArgs&)> _mFunction = nullptr;
+            };
+
+            Subscription* subscribe(ISubscriber* subscriber) {
+                auto *sub = new Subscription(subscriber);
+                _vSubscriptions.push_back(sub);
+                return sub;
             }
 
-            void invoke (TSender sender, TEventArgs eventArgs);
+            void remove (Subscription* sub) {
+                //TODO: remove subscription
+            }
+
+            void invoke (TSender sender, TEventArgs eventArgs) {
+                for (const auto& subscription : _vSubscriptions) {
+                   subscription->invoke (eventArgs);
+                }
+            }
 
         private:
-            std::vector<Subcription*> _vSubscriptions{};
+            std::vector<Subscription*> _vSubscriptions{};
         };
+
     }
 
     namespace graphics {
@@ -133,7 +184,7 @@ namespace loli {
         PLAY, QUIT
     };
 
-    class LoliApp {
+    class LoliApp : public events::ISubscriber {
     public:
         explicit LoliApp(utils::ILogger* logger, const std::string& name = "Loli Engine") {
             _pWindow = nullptr;
@@ -141,6 +192,9 @@ namespace loli {
             _mCurrentState = AppState::PLAY;
             _sName = name;
 
+            KeyDownEvent.subscribe(this)->add([&](auto& a) mutable {
+                OnKeyDown(a->code.get());
+            });
         }
         LoliApp& run() {
             init();
@@ -192,6 +246,8 @@ namespace loli {
             }
             return *this;
         }
+    public:
+        events::Event<LoliApp*, events::args::KeyDownEventArgs*> KeyDownEvent;
     private:
         LoliApp& init() {
             _mLogger->log("engine initializing...");
@@ -223,11 +279,11 @@ namespace loli {
             while (SDL_PollEvent(&event)) {
                 switch (event.type) {
                     case SDL_KEYDOWN:
-                        OnKeyDown(event.key.keysym.sym);
+                        KeyDownEvent.invoke(this, new events::args::KeyDownEventArgs(event.key.keysym.sym));
                         break;
                     case SDL_QUIT:
                         end();
-                            break;
+                        break;
                 }
             }
             return *this;
@@ -263,12 +319,12 @@ namespace loli {
 
         AppState _mCurrentState;
 
+        // For Delete
+        graphics::Sprite _mSprite{};
+    protected:
         //utility
         utils::ILogger* _mLogger;
 
-
-        // For Delete
-        graphics::Sprite _mSprite{};
     };
 }
 #endif //LOLIENGINE_LOLIENGINE_HPP
