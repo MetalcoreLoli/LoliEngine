@@ -59,6 +59,8 @@ namespace loli {
             private:
                 SDL_Keycode _mCode{};
             };
+
+            struct EmptyEventArgs : public IEventArgs{};
         };
         struct ISubscriber{};
 
@@ -174,6 +176,96 @@ namespace loli {
             GLuint _vboId = 0;
         };
 
+
+        struct Window  : public events::ISubscriber {
+            virtual void screenWidth(uint16_t value) {
+                if (value != _uScreenWidth) {
+                    _uScreenWidth = value;
+                }
+            }
+            [[nodiscard]] virtual uint16_t screenWidth() const {
+                return _uScreenWidth;
+            }
+
+            virtual void screenHeight(uint16_t value) {
+                if (value != _uScreenHeight) {
+                    _uScreenHeight = value;
+                }
+            }
+
+            [[nodiscard]] virtual uint16_t screenHeight() const {
+                return _uScreenHeight;
+            }
+
+            virtual void name (const std::string& name) {
+                if (_sName == name) {
+                    return;
+                }
+                _sName = name;
+            }
+
+            [[nodiscard]] virtual std::string name() const {
+                return _sName;
+            }
+
+            virtual void init() = 0;
+            virtual void draw() = 0;
+            virtual void destroy() = 0;
+
+            events::Event<Window&, events::args::IEventArgs&> OnDraw{};
+
+        private:
+            uint16_t _uScreenWidth = 800;
+            uint16_t _uScreenHeight = 600;
+
+            std::string _sName = "";
+
+        };
+
+        class SDLWindow : public Window {
+        public:
+            explicit SDLWindow (const std::string& name, utils::ILogger* logger = new utils::ConsoleLogger) {
+                this->name(name);
+                _mLogger = logger;
+            }
+        private:
+            SDL_Window *_mWindow = nullptr;
+            utils::ILogger* _mLogger;
+        protected:
+            void init() override {
+                SDL_Init(SDL_INIT_EVERYTHING);
+                _mWindow = SDL_CreateWindow(
+                        name().c_str(),
+                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                        screenHeight(), screenWidth(),
+                        SDL_WINDOW_OPENGL);
+                if (_mWindow == nullptr) {
+                    _mLogger->log("SDL window was not created");
+                    SDL_Quit();
+                }
+
+                SDL_GLContext context = SDL_GL_CreateContext(_mWindow);
+                if (context == nullptr) {
+                    _mLogger->log("SDL window was not created");
+                    SDL_Quit();
+                }
+                SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+            }
+
+            void draw() override {
+                glClearDepth(1.0);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                // TODO: create OnDrawEventArgs und pass it here
+                events::args::EmptyEventArgs eventArgs;
+                OnDraw.invoke(eventArgs);
+                SDL_GL_SwapWindow(_mWindow);
+            }
+
+            void destroy () override {
+                SDL_DestroyWindow(_mWindow);
+            }
+        };
     }
 
     enum class AppState {
@@ -183,10 +275,8 @@ namespace loli {
     class LoliApp : public events::ISubscriber {
     public:
         explicit LoliApp(utils::ILogger* logger, const std::string& name = "Loli Engine") {
-            _pWindow = nullptr;
             _mLogger = logger;
             _mCurrentState = AppState::PLAY;
-            _sName = name;
 
             KeyDownEvent.subscribe(this)->add([&](auto& s, auto &e) {
                 OnKeyDown(e.code.get());
@@ -200,26 +290,6 @@ namespace loli {
         }
 
         // properties
-        LoliApp& screenWidth(uint16_t value) {
-            if (value != _uScreenWidth) {
-                _uScreenWidth = value;
-            }
-            return *this;
-        }
-        [[nodiscard]] uint16_t screenWidth() const {
-            return _uScreenWidth;
-        }
-
-        LoliApp& screenHeight(uint16_t value) {
-            if (value != _uScreenHeight) {
-                _uScreenHeight = value;
-            }
-            return *this;
-        }
-
-        [[nodiscard]] uint16_t screenHeight() const {
-            return _uScreenHeight;
-        }
 
         LoliApp& changeStateTo(AppState state) {
             if (_mCurrentState != state) {
@@ -247,25 +317,7 @@ namespace loli {
     private:
         LoliApp& init() {
             _mLogger->log("engine initializing...");
-
-            SDL_Init(SDL_INIT_EVERYTHING);
-            _pWindow = SDL_CreateWindow(
-                    _sName.c_str(),
-                    SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                    screenHeight(), screenWidth(),
-                    SDL_WINDOW_OPENGL);
-            if (_pWindow == nullptr) {
-                _mLogger->log("SDL window was not created");
-                SDL_Quit();
-            }
-
-            SDL_GLContext context = SDL_GL_CreateContext(_pWindow);
-            if (context == nullptr) {
-                _mLogger->log("SDL window was not created");
-                SDL_Quit();
-            }
-            SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-            glClearColor(0.0,0.0,0.0, 1.0);
+            _mWindow->init();
 
             return *this;
         }
@@ -287,12 +339,7 @@ namespace loli {
         }
 
         void draw() {
-            glClearDepth(1.0);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            _mSprite.draw();
-
-            SDL_GL_SwapWindow(_pWindow);
+            _mWindow->draw();
         }
         void gameLoop() {
             _mLogger->log("enter into game loop...");
@@ -303,16 +350,15 @@ namespace loli {
             _mLogger->log("exiting game loop.");
         }
         void end() {
-            SDL_DestroyWindow(_pWindow);
+            _mWindow->destroy();
             changeStateTo(AppState::QUIT);
         }
     private:
-        SDL_Window *_pWindow;
 
-        uint16_t _uScreenWidth = 800;
-        uint16_t _uScreenHeight = 600;
-
-        std::string _sName = "";
+        /*
+         * App Window
+         * */
+        graphics::Window* _mWindow = nullptr;
 
         AppState _mCurrentState;
 
