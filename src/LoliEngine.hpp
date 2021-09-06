@@ -176,7 +176,6 @@ namespace loli {
             GLuint _vboId = 0;
         };
 
-
         struct Window  : public events::ISubscriber {
             virtual void screenWidth(uint16_t value) {
                 if (value != _uScreenWidth) {
@@ -210,78 +209,86 @@ namespace loli {
 
             virtual void init() = 0;
             virtual void draw() = 0;
+            virtual void processInput () = 0;
             virtual void destroy() = 0;
 
-            events::Event<Window&, events::args::IEventArgs&> OnDraw{};
+            events::Event<Window&, events::args::IEventArgs&> DrawEvent{};
+            events::Event<Window&, events::args::IEventArgs&> OnClosingEvent{};
+            events::Event<Window&, events::args::IEventArgs&> KeyDownEvent{};
 
         private:
             uint16_t _uScreenWidth = 800;
             uint16_t _uScreenHeight = 600;
 
-            std::string _sName = "";
-
+            std::string _sName;
         };
 
-        class SDLWindow : public Window {
-        public:
-            explicit SDLWindow (const std::string& name, utils::ILogger* logger = new utils::ConsoleLogger) {
-                this->name(name);
-                _mLogger = logger;
+        struct IWindowConfiguration {
+            virtual IWindowConfiguration& name (const std::string& value)  = 0;
+            virtual IWindowConfiguration& screenWidth(uint16_t value) = 0;
+            virtual IWindowConfiguration& screenHeight(uint16_t value) = 0;
+            virtual Window* construct() = 0;
+        };
+
+        template<typename TWin> requires std::derived_from<TWin, Window>
+        struct  DefWinConfiguration : public IWindowConfiguration {
+            DefWinConfiguration() {
+                _mWindow = new TWin;
             }
+
+            IWindowConfiguration& name (const std::string& value) override {
+               if (_mWindow->name() != value) {
+                   return *this;
+               }
+                _mWindow->name(value);
+                return *this;
+            }
+            IWindowConfiguration& screenWidth(uint16_t value) override {
+                if (_mWindow->screenWidth() != value) {
+                    return *this;
+                }
+                _mWindow->screenWidth(value);
+                return *this;
+            }
+            IWindowConfiguration& screenHeight(uint16_t value) override {
+                if (_mWindow->screenHeight() != value) {
+                    return *this;
+                }
+                _mWindow->screenHeight(value);
+                return *this;
+            }
+
+            Window* construct() override {
+               return _mWindow;
+            }
+
         private:
-            SDL_Window *_mWindow = nullptr;
-            utils::ILogger* _mLogger;
-        protected:
-            void init() override {
-                SDL_Init(SDL_INIT_EVERYTHING);
-                _mWindow = SDL_CreateWindow(
-                        name().c_str(),
-                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                        screenHeight(), screenWidth(),
-                        SDL_WINDOW_OPENGL);
-                if (_mWindow == nullptr) {
-                    _mLogger->log("SDL window was not created");
-                    SDL_Quit();
-                }
-
-                SDL_GLContext context = SDL_GL_CreateContext(_mWindow);
-                if (context == nullptr) {
-                    _mLogger->log("SDL window was not created");
-                    SDL_Quit();
-                }
-                SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-            }
-
-            void draw() override {
-                glClearDepth(1.0);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                // TODO: create OnDrawEventArgs und pass it here
-                events::args::EmptyEventArgs eventArgs;
-                OnDraw.invoke(eventArgs);
-                SDL_GL_SwapWindow(_mWindow);
-            }
-
-            void destroy () override {
-                SDL_DestroyWindow(_mWindow);
-            }
+            TWin *_mWindow = nullptr;
         };
+
     }
 
     enum class AppState {
         PLAY, QUIT
     };
 
+    struct IAppConfiguration {
+        virtual graphics::Window* window() const = 0;
+        virtual IAppConfiguration& window(graphics::IWindowConfiguration& windowConfiguration) = 0;
+
+        virtual utils::ILogger* logger() const = 0;
+        virtual IAppConfiguration& logger(utils::ILogger* logger) = 0;
+    };
+
+
     class LoliApp : public events::ISubscriber {
     public:
-        explicit LoliApp(utils::ILogger* logger, const std::string& name = "Loli Engine") {
+        LoliApp(graphics::Window* win, utils::ILogger* logger) {
+            _mWindow = win;
             _mLogger = logger;
             _mCurrentState = AppState::PLAY;
-
-            KeyDownEvent.subscribe(this)->add([&](auto& s, auto &e) {
-                OnKeyDown(e.code.get());
-            });
         }
+
         LoliApp& run() {
             init();
             _mSprite.init(-1.0f, -1.0f, 0.2f, 0.2f);
@@ -313,48 +320,56 @@ namespace loli {
             return *this;
         }
     public:
+
+        template<class TApp>
+        static TApp FromConfiguration (const IAppConfiguration& configuration) requires std:: derived_from<TApp, LoliApp>
+        {
+            TApp app(configuration.window(), configuration.logger());
+            return app;
+        }
+
         events::Event<LoliApp&, events::args::KeyDownEventArgs&> KeyDownEvent;
     private:
         LoliApp& init() {
             _mLogger->log("engine initializing...");
+            if (_mWindow == nullptr) {
+                _mLogger->log("window wasn't created");
+                return *this;
+            }
             _mWindow->init();
 
             return *this;
         }
 
         LoliApp& processInput () {
-            SDL_Event event;
-            while (SDL_PollEvent(&event)) {
-                switch (event.type) {
-                    case SDL_QUIT:
-                        end();
-                        break;
-                    case SDL_KEYDOWN:
-                        events::args::KeyDownEventArgs eventArgs(event.key.keysym.sym);
-                        KeyDownEvent.invoke(eventArgs);
-                        break;
-                }
-            }
+            _mWindow->processInput();
             return *this;
         }
 
         void draw() {
             _mWindow->draw();
         }
+
         void gameLoop() {
             _mLogger->log("enter into game loop...");
             while (currentState() != AppState::QUIT) {
                 processInput();
                 draw();
             }
+            end();
             _mLogger->log("exiting game loop.");
         }
+
         void end() {
             _mWindow->destroy();
             changeStateTo(AppState::QUIT);
         }
-    private:
 
+    protected:
+        graphics::Window* window () const {
+            return _mWindow;
+        }
+    private:
         /*
          * App Window
          * */
@@ -368,6 +383,30 @@ namespace loli {
         //utility
         utils::ILogger* _mLogger;
 
+    };
+
+    template<typename TApp> requires std::derived_from<TApp, LoliApp>
+    struct DefAppConfiguration : public IAppConfiguration {
+        graphics::Window* window() const {
+            return _mWin;
+        }
+        IAppConfiguration& window(graphics::IWindowConfiguration& windowConfiguration) {
+            _mWin = windowConfiguration.construct();
+            return *this;
+        }
+
+        utils::ILogger* logger() const {
+            return _mLogger;
+        }
+
+        IAppConfiguration& logger(utils::ILogger* logger) {
+            _mLogger = logger;
+            return *this;
+        }
+    private:
+        graphics::Window* _mWin = nullptr;
+        utils::ILogger *_mLogger = nullptr;
+        TApp *_mApp;
     };
 }
 #endif //LOLIENGINE_LOLIENGINE_HPP
