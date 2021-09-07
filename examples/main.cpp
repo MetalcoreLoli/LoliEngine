@@ -8,6 +8,13 @@ public:
     SDLWindow (const std::string& name, loli::utils::ILogger* logger = new loli::utils::ConsoleLogger) {
         this->name(name);
         _mLogger = logger;
+        KeyDownEvent.subscribe(this)->add([](auto s, auto e) {
+            auto ev = static_cast<loli::events::args::KeyDownEventArgs&>(e);
+            std::cout << "key " << (char)ev.code.get() << std::endl;
+            if (ev.code.get() == SDLK_q) {
+                SDL_Quit();
+            }
+        });
     }
     virtual ~SDLWindow() {destroy();}
 private:
@@ -41,6 +48,7 @@ protected:
                 case SDL_QUIT:
                     loli::events::args::EmptyEventArgs emptyEventArgs;
                     OnClosingEvent.invoke(emptyEventArgs);
+                    destroy();
                     break;
                 case SDL_KEYDOWN:
                     loli::events::args::KeyDownEventArgs eventArgs(event.key.keysym.sym);
