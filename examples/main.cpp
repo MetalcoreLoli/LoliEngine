@@ -8,13 +8,6 @@ public:
     SDLWindow (const std::string& name, loli::utils::ILogger* logger = new loli::utils::ConsoleLogger) {
         this->name(name);
         _mLogger = logger;
-        KeyDownEvent.subscribe(this)->add([](auto s, auto e) {
-            auto ev = static_cast<loli::events::args::KeyDownEventArgs&>(e);
-            std::cout << "key " << (char)ev.code.get() << std::endl;
-            if (ev.code.get() == SDLK_q) {
-                SDL_Quit();
-            }
-        });
     }
     virtual ~SDLWindow() {destroy();}
 private:
@@ -75,13 +68,18 @@ protected:
 
 struct MyApp : public loli::LoliApp {
     MyApp(loli::graphics::Window* win, loli::utils::ILogger *logger) : loli::LoliApp(win, logger) {
-        KeyDownEvent.subscribe(this)->add([&](auto s, auto e) {
-            OnKeyDown(e.code.get());
-            std::cout << (char)e.code.get() << std::endl;
+        window()->KeyDownEvent.subscribe(window())->add([&](auto &s, auto &e) {
+            auto eventArg = static_cast<loli::events::args::KeyDownEventArgs&>(e);
+            OnKeyDown(eventArg.code.get());
+        });
+
+        window()->OnClosingEvent.subscribe(window())->add([&](auto &s, auto &e) {
+            _mLogger->log("Bye Bye!!!");
         });
     }
-
     loli::LoliApp& OnKeyDown (SDL_Keycode key) override {
+        std::string message = "key ";
+        _mLogger->log(message.append(std::to_string((char)key)).append(" was pressed"));
         switch (key) {
             case SDLK_ESCAPE:
                 changeStateTo(loli::AppState::QUIT);
@@ -94,15 +92,21 @@ int main() {
     loli::IAppConfiguration *configuration = new loli::DefAppConfiguration<MyApp>;
     loli::graphics::DefWinConfiguration<SDLWindow> winConfiguration;
 
-    winConfiguration.screenWidth(600).screenHeight(800);
+    winConfiguration
+        .name("Loli Engine")
+        .screenWidth(600).screenHeight(800)
+    .onKeyDown([](auto &s, auto &e) {
+        auto &ev = static_cast<loli::events::args::KeyDownEventArgs&>(e);
+        std::cout << "key [" << (char)ev.code.get()<< "] was pressed" << std::endl;
+    })
+    .onClosing([](auto &s, auto &e) {
+        std::cout << "Good Bye >_< /!!" << std::endl;
+    });
+
     configuration->logger(new loli::utils::ConsoleLogger).window(winConfiguration);
 
     //auto app = loli::LoliApp::FromConfiguration<MyApp>(*configuration);
-    SDLWindow *win = new SDLWindow("Loli Engine", new loli::utils::ConsoleLogger);
-    win->screenHeight(800);
-    win->screenWidth(600);
-
-    MyApp app (win, new loli::utils::ConsoleLogger);
+    MyApp app (winConfiguration.construct(), new loli::utils::ConsoleLogger);
 
     app.KeyDownEvent.subscribe(&app)->add([](auto& s, auto& key) mutable {
         std::cout << "key: " << (char) key.code.get() << " was pressed" <<std::endl;

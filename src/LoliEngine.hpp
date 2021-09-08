@@ -47,6 +47,8 @@ namespace loli {
     namespace events {
         namespace args {
             struct IEventArgs{};
+
+
             template<typename T>
             concept EventArguments = std::derived_from<T, IEventArgs> || std::is_reference_v<T>;
 
@@ -227,6 +229,10 @@ namespace loli {
             virtual IWindowConfiguration& name (const std::string& value)  = 0;
             virtual IWindowConfiguration& screenWidth(uint16_t value) = 0;
             virtual IWindowConfiguration& screenHeight(uint16_t value) = 0;
+
+            virtual IWindowConfiguration& onKeyDown(void (*function)(events::ISubscriber& s, events::args::IEventArgs& eventArgs)) = 0;
+            virtual IWindowConfiguration& onDraw(void (*function)(events::ISubscriber& s, events::args::IEventArgs& eventArgs)) = 0;
+            virtual IWindowConfiguration& onClosing(void (*function)(events::ISubscriber& s, events::args::IEventArgs& eventArgs)) = 0;
             virtual Window* construct() = 0;
         };
 
@@ -262,6 +268,20 @@ namespace loli {
                return _mWindow;
             }
 
+            IWindowConfiguration& onKeyDown(void (*function)(events::ISubscriber& s, events::args::IEventArgs& eventArgs)) override {
+                _mWindow->KeyDownEvent.subscribe(_mWindow)->add(function);
+                return *this;
+            }
+
+            IWindowConfiguration& onDraw(void (*function)(events::ISubscriber& s, events::args::IEventArgs& eventArgs)) override {
+                _mWindow->DrawEvent.subscribe(_mWindow)->add(function);
+                return *this;
+            }
+
+            IWindowConfiguration& onClosing(void (*function)(events::ISubscriber& s, events::args::IEventArgs& eventArgs)) override {
+                _mWindow->OnClosingEvent.subscribe(_mWindow)->add(function);
+                return *this;
+            }
         private:
             TWin *_mWindow = nullptr;
         };
