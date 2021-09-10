@@ -331,14 +331,7 @@ namespace loli {
         }
 
         // overrides
-        virtual LoliApp& OnKeyDown (SDL_Keycode key) {
-            switch (key) {
-                case SDLK_ESCAPE:
-                    end();
-                    break;
-            }
-            return *this;
-        }
+        virtual LoliApp& OnKeyDown (SDL_Keycode key) = 0;
     public:
 
         template<class TApp>
@@ -386,7 +379,7 @@ namespace loli {
         }
 
     protected:
-        graphics::Window* window () const {
+        [[nodiscard]] graphics::Window* window () const {
             return _mWindow;
         }
     private:
@@ -407,19 +400,19 @@ namespace loli {
 
     template<typename TApp> requires std::derived_from<TApp, LoliApp>
     struct DefAppConfiguration : public IAppConfiguration {
-        graphics::Window* window() const {
+        [[nodiscard]] graphics::Window* window() const override {
             return _mWin;
         }
-        IAppConfiguration& window(graphics::IWindowConfiguration& windowConfiguration) {
+        IAppConfiguration& window(graphics::IWindowConfiguration& windowConfiguration) override {
             _mWin = windowConfiguration.construct();
             return *this;
         }
 
-        utils::ILogger* logger() const {
+        [[nodiscard]] utils::ILogger* logger() const override {
             return _mLogger;
         }
 
-        IAppConfiguration& logger(utils::ILogger* logger) {
+        IAppConfiguration& logger(utils::ILogger* logger) override {
             _mLogger = logger;
             return *this;
         }

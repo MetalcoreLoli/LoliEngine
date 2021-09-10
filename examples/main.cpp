@@ -39,8 +39,6 @@ protected:
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
                 case SDL_QUIT:
-                    loli::events::args::EmptyEventArgs emptyEventArgs;
-                    OnClosingEvent.invoke(emptyEventArgs);
                     destroy();
                     break;
                 case SDL_KEYDOWN:
@@ -62,6 +60,8 @@ protected:
     }
 
     void destroy () override {
+        loli::events::args::EmptyEventArgs emptyEventArgs;
+        OnClosingEvent.invoke(emptyEventArgs);
         SDL_DestroyWindow(_mWindow);
     }
 };
@@ -71,10 +71,6 @@ struct MyApp : public loli::LoliApp {
         window()->KeyDownEvent.subscribe(window())->add([&](auto &s, auto &e) {
             auto eventArg = static_cast<loli::events::args::KeyDownEventArgs&>(e);
             OnKeyDown(eventArg.code.get());
-        });
-
-        window()->OnClosingEvent.subscribe(window())->add([&](auto &s, auto &e) {
-            _mLogger->log("Bye Bye!!!");
         });
     }
     loli::LoliApp& OnKeyDown (SDL_Keycode key) override {
@@ -97,20 +93,16 @@ int main() {
         .screenWidth(600).screenHeight(800)
     .onKeyDown([](auto &s, auto &e) {
         auto &ev = static_cast<loli::events::args::KeyDownEventArgs&>(e);
-        std::cout << "key [" << (char)ev.code.get()<< "] was pressed" << std::endl;
+        std::cout << "["<< __FILE__ << ":" <<__LINE__<< "]: key [" << (char)ev.code.get() << "] was pressed" << std::endl;
     })
     .onClosing([](auto &s, auto &e) {
-        std::cout << "Good Bye >_< /!!" << std::endl;
+        std::cout << "["<< __FILE__ << ":" <<__LINE__<< "]: Good Bye >_< / !!!" << std::endl;
     });
 
     configuration->logger(new loli::utils::ConsoleLogger).window(winConfiguration);
-
     //auto app = loli::LoliApp::FromConfiguration<MyApp>(*configuration);
     MyApp app (winConfiguration.construct(), new loli::utils::ConsoleLogger);
 
-    app.KeyDownEvent.subscribe(&app)->add([](auto& s, auto& key) mutable {
-        std::cout << "key: " << (char) key.code.get() << " was pressed" <<std::endl;
-    });
     app.run();
     return 0;
 }
